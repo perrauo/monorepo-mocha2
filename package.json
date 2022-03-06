@@ -1,0 +1,92 @@
+{
+		"name": "monorepo-mocha",
+		"displayName": "Mocha - Monorepo",
+		"description": "Run mocha unit tests in a monorepo layout",
+		"version": "1.0.0",
+		"engines": {
+				"vscode": "^1.65.0"
+		},
+		"categories": [
+				"Testing"
+		],
+		"activationEvents": [
+				"onLanguage:typescript"
+		],
+		"main": "./out/extension.js",
+		"capabilities": {
+				"codeLensProvider": {
+						"resolveProvider": "true"
+				},
+				"commands": [
+						{
+								"command": "monorepo-mocha.debug.test",
+								"title": "Debug Test"
+						},
+						{
+								"command": "monorepo-mocha.run.test",
+								"title": "Run Test"
+						}
+				],
+				"configuration": [
+						{
+								"properties": {
+										"monorepo-mocha.defaultArguments": {
+												"default": "--require ts-node/register",
+												"description": "CLI args to pass to test runner.",
+												"scope": "resource",
+												"type": "string"
+										},
+										"monorepo-mocha.extensions": {
+												"default": [
+														".test.ts"
+												],
+												"description": "Extensions of files that contain mocha tests.",
+												"items": {
+														"type": "string"
+												},
+												"scope": "resource",
+												"type": "array"
+										},
+										"monorepo-mocha.testRoots": {
+												"default": [],
+												"description": "The root paths of the monorepo to run tests in.",
+												"items": {
+														"type": "object"
+												},
+												"scope": "resource",
+												"type": "array"
+										}
+								}
+						}
+				]
+		},
+		"contributes": {},
+		"scripts": {
+				"vscode:prepublish": "yarn run compile",
+				"compile": "tsc -p ./",
+				"watch": "tsc -watch -p ./",
+				"pretest": "yarn run compile && yarn run lint",
+				"lint": "eslint src --ext ts",
+				"test": "node ./out/test/runTest.js"
+		},
+		"dependencies": {
+				"@babel/parser": "7.17.3",
+				"@babel/traverse": "7.17.3",
+				"@babel/types": "7.17.0",
+				"vscode-test-adapter-api": "^1.9.0"
+		},
+		"devDependencies": {
+				"@types/vscode": "^1.64.0",
+				"@types/glob": "^7.2.0",
+				"@types/mocha": "^9.1.0",
+				"@types/node": "14.x",
+				"@types/babel__traverse": "7.14.2",
+				"@typescript-eslint/eslint-plugin": "^5.12.1",
+				"@typescript-eslint/parser": "^5.12.1",
+				"eslint": "^8.9.0",
+				"glob": "^7.2.0",
+				"mocha": "^9.2.1",
+				"typescript": "^4.5.5",
+				"@vscode/test-electron": "^2.1.2"
+		}
+}
