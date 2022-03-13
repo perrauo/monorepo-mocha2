@@ -35,4 +35,8 @@ export class ConfigurationProvider {
   get debugTimeout(): number {
     return this.configuration.get("debugTimeout") || 10000;
   }
+
+  get trackResultsInline(): boolean {
+    return this.configuration.get("trackResultsInline") || false;
+  }
 }

@@ -23,13 +23,20 @@ This extension contributes the following settings:
   * `rootPath`: Sub directory path to use as the root for the tests. Used to match against the test file, and if matches will apply these settings.
   * `additionalArguments`: Additional arguments to append to the mocha command for all test files run under this path.
   * `env?`: Environment variables to set will running tests in this path.
+* `monorepo-mocha.trackResultsInline`: Use in-built test explorer to track results, if false will be done in terminal.
 
 ## Known Issues
-  * Tests run through the test suite view will not report success / failure back to the view.
+  
 ## Release Notes
 
 ### 1.0.0
 
 Initial release
+
+-----------------------------------------------------------------------------------------------------------
+### 1.1.0
+
+* Made only one terminal open per test
+* Add facility to track test results using test explorer
 
 -----------------------------------------------------------------------------------------------------------

@@ -1,9 +1,12 @@
 import {join, relative, sep, dirname, resolve} from "path";
-import {existsSync} from "fs";
-import {debug, DebugSession, Disposable, WorkspaceFolder} from "vscode";
+import {existsSync, watchFile, readFileSync, rmSync, unwatchFile} from "fs";
+import * as uuid from "uuid";
+import {XMLParser} from 'fast-xml-parser';
+import {debug, DebugSession, Disposable, TestItem, TestRun, WorkspaceFolder} from "vscode";
 import {ConfigurationProvider, TestLocationConfiguration} from "../providers/ConfigurationProvider";
 import {TerminalProvider} from "../providers/TerminalProvider";
 import {TestRunMode} from "../commands/RunTestCommand";
+import { registerTestResults } from "../providers/TestManager";
 
 export const findTSConfig = (dir: string, root: string): string | undefined => {
   const tsconfig = join(dir, "tsconfig.json");
@@ -64,12 +67,43 @@ export class MochaTestRunner  {
     }
   }
 
+  async trackResults(
+    rootPath: WorkspaceFolder,
+    fileName: string,
+    testName: string,
+    runMode: TestRunMode,
+    outFile: string,
+    testRun: TestRun,
+    item: TestItem,
+  ) : Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      testRun.started(item);
+      watchFile(outFile, {}, (curr, prev) => {
+        try {
+          if (existsSync(outFile)) {
+            const fileData = readFileSync(outFile, 'utf8');
+            const parser = new XMLParser({ignoreAttributes: false});
+            const results = parser.parse(fileData);
+            registerTestResults(join(rootPath.uri.fsPath, fileName), testName, runMode, results, testRun, item);
+            unwatchFile(outFile);
+            rmSync(outFile);
+          }
+        } catch(e) {
+          console.error(e);
+        }
+        resolve();
+      });
+    });
+  }
+
   public async runTest(
     rootPath: WorkspaceFolder,
     fileName: string,
     testName: string,
     debug: boolean,
     runMode: TestRunMode,
+    testRun?: TestRun,
+    item?: TestItem,
   ): Promise<boolean> {
     const additionalArguments = this.configurationProvider.defaultArguments;
     
@@ -85,10 +119,17 @@ export class MochaTestRunner  {
     ];
 
     if (runMode === TestRunMode.suite) {
-      args.push(
-        '--fgrep',
-        `'"${testName}"'`,
-      );
+      if (testName.indexOf("'")) {
+        args.push(
+          '--grep',
+          `'"${testName.replace(/'/g, ".")}"'`,
+        );
+      } else {
+        args.push(
+          '--fgrep',
+          `'"${testName}"'`,
+        );
+      }
     }
 
     if (debug) {
@@ -107,10 +148,19 @@ export class MochaTestRunner  {
     } else {
       args.push(`.${sep}${testPath}`);
     }
+
+    const promises = [];
+
+    if (this.configurationProvider.trackResultsInline && testRun && item) {
+      const outFile = `${join(cwd, `test-results-${uuid.v4()}.xml`)}`;
+      args.push("--reporter", "xunit", "--reporter-option", `output=${outFile}`);
+      promises.push(this.trackResults(rootPath, fileName, testName, runMode, outFile, testRun, item));
+    }
+
     const command = args.join(' ');
     const terminal = this.terminalProvider.get(
+      `Mocha  - ${testName}`, 
       {
-        name: `Mocha  - ${testName}` , 
         cwd, 
         env: matchingConfig?.env,
       },
@@ -122,6 +172,11 @@ export class MochaTestRunner  {
     if (debug) {
       await this.debugAlt(rootPath, testName, debugTimeout);
     }
+
+    if (promises.length > 0) {
+      await Promise.all(promises);
+    }
+
     return Promise.resolve(true);
   }
 

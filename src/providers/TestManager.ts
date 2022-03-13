@@ -11,6 +11,7 @@ import {
   workspace,
   TestItem,
   WorkspaceFolder,
+  TestRun,
 } from "vscode";
 import {basename, relative} from "path";
 import {DEBUG_TEST_COMMAND, RUN_TEST_COMMAND} from "../common/Constants";
@@ -25,6 +26,10 @@ export let testController: TestController | undefined = undefined;
 export const TEST = "test";
 export const TEST_SUITE = "testSuite";
 export const FOLDER = "folder";
+
+export const createItemId = (fileName: string, testName?: string) => {
+  return testName ? `${fileName.replace(/\\/g,'/')}-${testName}` : fileName.replace(/\\/g,'/');
+};
 
 export const getTestRoot = (
   config: ConfigurationProvider,
@@ -63,24 +68,45 @@ const getTestRunMode = (tag: TestTag): TestRunMode => {
   }
 };
 
-const executeTest = async  (request: TestRunRequest, command: string) => {
-  const {include} = request;
-      if (include) {
-        await Promise.all(include.map((item): Promise<void> => {
-          if (item.uri) {
-            const rootPath = getRootPath(item.uri);
-            const fileName = item.uri.fsPath;
-            const testName = item.label;
-            const [tag] = item.tags;
-            const runMode = getTestRunMode(tag);
-            return commands.executeCommand(command,
-              rootPath, fileName, testName, runMode,
-            ) as Promise<void>;
-          }
+export const startTestRun = (testController: TestController, runMode: TestRunMode, item: TestItem, request: TestRunRequest) => {
+    const includeItems = [item];
+    switch (runMode) {
+      case TestRunMode.file:
+        item.children.forEach((child) => includeItems.push(child));
+        break;
+      case TestRunMode.suite:
+        if (item.parent) {
+          item.parent.children.forEach((child) => {if (child.id !== item.id) {includeItems.push(child);}});
+        }
+        break;
+      case TestRunMode.folder:
+      default:
+    }
+    const testRun = testController.createTestRun({...request, include: includeItems});
+    includeItems.forEach((item) => testRun.started(item));
+    return testRun;
+};
 
-          return Promise.resolve();
-        }));
-      }
+export const executeTest = async  (request: TestRunRequest, token: CancellationToken, command: string) => {
+  const {include} = request;
+  if (include && testController && include.length === 1) {
+    const [item] = include;
+    const testName = item.label;
+    const [tag] = item.tags;
+    const runMode = getTestRunMode(tag);
+    const testRun = startTestRun(testController, runMode, item, request);
+    
+    if (item.uri) {
+      const rootPath = getRootPath(item.uri);
+      const fileName = item.uri.fsPath;
+      
+      return commands.executeCommand(command,
+        rootPath, fileName, testName, runMode, testRun, item,
+      ) as Promise<void>;
+    }
+
+    return Promise.resolve();
+  }
 };
 
 export const discoverTests = async (testController: TestController) => {
@@ -96,7 +122,7 @@ export const discoverTests = async (testController: TestController) => {
         if (testController) {
         const fileName = file.fsPath;
         const label = basename(fileName);
-        const id = fileName;
+        const id = createItemId(fileName);
         
         const item = testController.createTestItem(id, label, file);
         if (item) {
@@ -123,7 +149,7 @@ export const initTestController = (): TestController => {
       codeParser(document.getText(), (entryPoint: TestEntryPoint) => {
         const {loc: {start}, testName} = entryPoint;
         const testCase = testController?.createTestItem(
-          `${item.uri?.fsPath}-${testName}`,
+          createItemId(item.uri?.fsPath || '', testName),
           testName,
           item.uri,
         );
@@ -147,13 +173,13 @@ export const initTestController = (): TestController => {
 	testController.createRunProfile(
 		'Run Mocha Tests', 
 		TestRunProfileKind.Run, 
-		async (request, token) => executeTest(request, RUN_TEST_COMMAND),
+		async (request, token) => executeTest(request, token, RUN_TEST_COMMAND),
 	);
 
   testController.createRunProfile(
 		'Debug Mocha Tests', 
 		TestRunProfileKind.Debug, 
-		async (request, token) => executeTest(request, DEBUG_TEST_COMMAND),
+		async (request, token) => executeTest(request, token, DEBUG_TEST_COMMAND),
 	);
 
   return testController;
@@ -169,15 +195,15 @@ export const addTestFile = (
 ) => {
   if (testController) {
     const root = getTestRoot(config, rootPath , fileName, testController);
-    let parent = root.children.get(fileName);
+    let parent = root.children.get(createItemId(fileName));
     if (!parent) {
       
-      parent = testController.createTestItem(fileName, basename(fileName), uri);
+      parent = testController.createTestItem(createItemId(fileName), basename(fileName), uri);
       parent.tags = [new TestTag(TEST_SUITE)];
       root.children.add(parent);
     }
     const item = testController.createTestItem(
-      `${fileName}-${testName}`,
+      createItemId(fileName, testName),
       testName,
       uri,
     );
@@ -186,5 +212,81 @@ export const addTestFile = (
     parent.children.add(
       item
     );
+    return item;
+  }
+};
+
+export const registerTestResults = (
+  fileName: string,
+  testName: string,
+  runMode: TestRunMode,
+  results: any,
+  testRun: TestRun,
+  item: TestItem,
+) => {
+  const {
+    '@_tests': tests,
+    '@_failures': failures,
+    '@_errors': errors,
+    '@_skipped': skipped,
+    testcase,
+  } = results.testsuite;
+  const findMatchingItems = (className: string, name: string, runMode: TestRunMode) => {
+    const results: TestItem[] = [];
+    if (runMode === TestRunMode.suite) {
+      const parents = className.split(' ').map(parent => createItemId(fileName, parent));
+      const id = createItemId(fileName, name);
+      item.parent?.children.forEach(child => {
+        if (child.id === id || parents.includes(child.id)) {
+          results.push(child);
+        }
+      });      
+    }
+    if (runMode === TestRunMode.file) {
+      const parents = className.split(' ').map(parent => createItemId(fileName, parent));
+      const id = createItemId(fileName, name);
+      item.children.forEach(child => {
+        if (child.id === id || parents.includes(child.id)) {
+          results.push(child);
+        }
+      });     
+    }
+    return results;
+  };
+
+  if (testController) {
+      const errorTotal = parseInt(errors, 10) + parseInt(failures, 10);
+      let totalTime = 0;
+      const failureList: string[] = [];
+      const failedItems: string[] = [];
+
+      const testCases = testcase instanceof Array ? testcase : [testcase];
+
+      testCases.forEach((test: any) => {
+        const {'@_name': name, '@_time': time, m,'@_classname': className, failure: failureMessage} = test;
+        
+        failureList.push(failureMessage);
+        totalTime += parseFloat(time);
+       
+        findMatchingItems(className, name, runMode).forEach(caseItem => {;
+          if (caseItem) {
+            if (failureMessage) {
+              failedItems.push(caseItem.id);
+              testRun.failed(caseItem, {message: failureMessage}, parseFloat(time));
+            } else {
+              if (!failedItems.includes(caseItem.id)) {
+                testRun.passed(caseItem, parseFloat(time));
+              }
+            }
+          }
+        });
+      });
+
+      if (errorTotal > 0) {
+        testRun.failed(item, {message: failureList.join('\n')}, totalTime);
+      } else {
+        testRun.passed(item, totalTime);
+      }
+      testRun.end();
   }
 };

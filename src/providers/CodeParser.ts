@@ -2,8 +2,8 @@ import { parse, ParserOptions } from "@babel/parser";
 import traverse from "@babel/traverse";
 import { CallExpression, Identifier, SourceLocation } from "@babel/types";
 
-const parentTokens = ["each"];
-const testTokens = ["describe", "it"];
+const parentTokens = ["each", "it", "describe"];
+const testTokens = ["describe", "it", "skip"];
 
 export interface TestEntryPoint {
   loc: SourceLocation;
@@ -47,7 +47,6 @@ function codeParser(sourceCode: string, onToken: (entryPoint: TestEntryPoint) =>
               };
               result.push(entryPoint);
               onToken(entryPoint);
-              console.log(`${identifier.name} ${a.value}`);
             }
           }
         });

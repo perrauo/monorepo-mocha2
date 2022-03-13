@@ -2,10 +2,10 @@
 		"name": "monorepo-mocha",
 		"displayName": "Mocha - Monorepo",
 		"description": "Run mocha unit tests in a monorepo layout",
-		"version": "1.0.0",
+		"version": "1.1.0",
 		"publisher": "GeekAdonis",
 		"author": {"name": "Stephen"},
-		"icons": "images/icons.png",
+		"icons": "images/icon.png",
 		"license": "MIT",
 		"repository": {
 			"type": "git",
@@ -16,7 +16,7 @@
 			"theme": "dark"
 		},
 		"engines": {
-				"vscode": "^1.65.0"
+				"vscode": "^1.64.0"
 		},
 		"categories": [
 				"Testing"
@@ -67,12 +67,53 @@
 												},
 												"scope": "resource",
 												"type": "array"
+										},
+										"monorepo-mocha.trackResultsInline": {
+											"default": "true",
+											"description": "Use in-built test explorer to track results, if false will be done in terminal",
+											"type": "boolean",
+											"scope": "resource"
 										}
 								}
 						}
 				]
 		},
-		"contributes": {},
+		"contributes": {
+			"configuration": 
+				{
+						"title": "Monorepo Mocha",
+						"properties": {
+								"monorepo-mocha.defaultArguments": {
+										"default": "--require ts-node/register",
+										"description": "CLI args to pass to test runner.",
+										"type": "string"
+								},
+								"monorepo-mocha.extensions": {
+										"default": [
+												".test.ts"
+										],
+										"description": "Extensions of files that contain mocha tests.",
+										"items": {
+												"type": "string"
+										},
+										"type": "array"
+								},
+								"monorepo-mocha.testRoots": {
+										"default": [],
+										"description": "The root paths of the monorepo to run tests in.",
+										"items": {
+												"type": "object"
+										},
+										"type": "array"
+								},
+								"monorepo-mocha.trackResultsInline": {
+									"default": true,
+									"description": "Use in-built test explorer to track results, if false will be done in terminal",
+									"type": "boolean"
+								}
+						}
+				}
+		},
 		"scripts": {
 				"vscode:prepublish": "yarn run compile",
 				"compile": "tsc -p ./",
@@ -85,7 +126,10 @@
 				"@babel/parser": "7.17.3",
 				"@babel/traverse": "7.17.3",
 				"@babel/types": "7.17.0",
-				"vscode-test-adapter-api": "^1.9.0"
+				"vscode-test-adapter-api": "^1.9.0",
+				"mocha": "^9.2.1",
+				"uuid": "^8.3.2",
+				"fast-xml-parser": "^4.0.6"
 		},
 		"devDependencies": {
 				"@types/vscode": "^1.64.0",
@@ -93,11 +137,11 @@
 				"@types/mocha": "^9.1.0",
 				"@types/node": "14.x",
 				"@types/babel__traverse": "7.14.2",
+				"@types/uuid": "^8.3.4",
 				"@typescript-eslint/eslint-plugin": "^5.12.1",
 				"@typescript-eslint/parser": "^5.12.1",
 				"eslint": "^8.9.0",
 				"glob": "^7.2.0",
-				"mocha": "^9.2.1",
 				"typescript": "^4.5.5",
 				"@vscode/test-electron": "^2.1.2"
 		}

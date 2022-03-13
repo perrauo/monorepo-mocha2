@@ -35,18 +35,18 @@ export class RunTestCodeLensProvider implements CodeLensProvider {
         const {loc: {start}, testName} = entryPoint;  
         const range = createRangeObject(start, document);
         
-        addTestFile(rootPath as WorkspaceFolder, configurationProvider, fileName, testName, document.uri, range);
+        const item = addTestFile(rootPath as WorkspaceFolder, configurationProvider, fileName, testName, document.uri, range);
 
         results.push(new CodeLens(range, {
           title: 'Run test',
           command: RUN_TEST_COMMAND,
-          arguments: [rootPath, fileName, testName, TestRunMode.suite],
+          arguments: [rootPath, fileName, testName, TestRunMode.suite, undefined, item],
         }));
 
         results.push(new CodeLens(range, {
           title: 'Debug test',
           command: DEBUG_TEST_COMMAND,
-          arguments: [rootPath, fileName, testName, TestRunMode.suite]
+          arguments: [rootPath, fileName, testName, TestRunMode.suite, undefined, item]
         }));
       });
     }
