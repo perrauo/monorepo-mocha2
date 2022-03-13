@@ -12,8 +12,10 @@ import {
   TestItem,
   WorkspaceFolder,
   TestRun,
+  Location,
+  Position,
 } from "vscode";
-import {basename, relative} from "path";
+import {basename, join, relative} from "path";
 import {DEBUG_TEST_COMMAND, RUN_TEST_COMMAND} from "../common/Constants";
 import {createRangeObject, getRootPath} from "../common/Helpers";
 import {ConfigurationProvider} from "./ConfigurationProvider";
@@ -83,7 +85,7 @@ export const startTestRun = (testController: TestController, runMode: TestRunMod
       default:
     }
     const testRun = testController.createTestRun({...request, include: includeItems});
-    includeItems.forEach((item) => testRun.started(item));
+    includeItems.forEach((item) => item.busy = true);
     return testRun;
 };
 
@@ -225,31 +227,49 @@ export const registerTestResults = (
   item: TestItem,
 ) => {
   const {
-    '@_tests': tests,
     '@_failures': failures,
     '@_errors': errors,
-    '@_skipped': skipped,
     testcase,
   } = results.testsuite;
+
+  const determineLocation = (failureMessage: string, fileName: string): Location | undefined => {
+    // test\common\MeasurementCalculations.test.ts:47:27
+    const matches = failureMessage.match(`${basename(fileName)}:([0-9]+):([0-9]+)`);
+    if (matches) {
+      const [, line, character] = matches;
+      return new Location(Uri.file(fileName), new Position(parseInt(line, 10)-1, parseInt(character, 10)-1));
+    }
+    return undefined;
+  };
+
+  const determineDiff = (failureMessage: string): {expectedOutput: string, actualOutput: string} | undefined => {
+    // expected 'A1A2B2' to equal 'A1A2B2l'
+    const matches = failureMessage.match(/expected (.*) to .*? (.*)/);
+    if (matches) {
+      return {
+        expectedOutput: matches[1],
+        actualOutput: matches[2],
+      };
+    }
+    return undefined;
+  };
+
   const findMatchingItems = (className: string, name: string, runMode: TestRunMode) => {
     const results: TestItem[] = [];
+    const id = createItemId(fileName, name);
+
+    const addRelatedItems = (child: TestItem) => {
+      const testName = child.id.split(`${fileName.replace(/\\/g,'/')}-`).pop() || "???";
+      if (child.id === id || className.endsWith(testName) || className.startsWith(testName)) {
+        results.push(child);
+      }
+    };
+
     if (runMode === TestRunMode.suite) {
-      const parents = className.split(' ').map(parent => createItemId(fileName, parent));
-      const id = createItemId(fileName, name);
-      item.parent?.children.forEach(child => {
-        if (child.id === id || parents.includes(child.id)) {
-          results.push(child);
-        }
-      });      
+      item.parent?.children.forEach(addRelatedItems);      
     }
     if (runMode === TestRunMode.file) {
-      const parents = className.split(' ').map(parent => createItemId(fileName, parent));
-      const id = createItemId(fileName, name);
-      item.children.forEach(child => {
-        if (child.id === id || parents.includes(child.id)) {
-          results.push(child);
-        }
-      });     
+      item.children.forEach(addRelatedItems);   
     }
     return results;
   };
@@ -268,11 +288,16 @@ export const registerTestResults = (
         failureList.push(failureMessage);
         totalTime += parseFloat(time);
        
-        findMatchingItems(className, name, runMode).forEach(caseItem => {;
+        const itemsToUpdate = findMatchingItems(className, name, runMode);
+
+        itemsToUpdate.forEach(caseItem => {;
           if (caseItem) {
+            caseItem.busy = false;
             if (failureMessage) {
               failedItems.push(caseItem.id);
-              testRun.failed(caseItem, {message: failureMessage}, parseFloat(time));
+              const location = determineLocation(failureMessage, fileName);
+              const diff = determineDiff(failureMessage) || {};
+              testRun.failed(caseItem, {message: failureMessage, location, ...diff}, parseFloat(time));
             } else {
               if (!failedItems.includes(caseItem.id)) {
                 testRun.passed(caseItem, parseFloat(time));
@@ -287,6 +312,7 @@ export const registerTestResults = (
       } else {
         testRun.passed(item, totalTime);
       }
+      item.busy = false;
       testRun.end();
   }
 };

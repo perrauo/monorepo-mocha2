@@ -168,7 +168,7 @@ export class MochaTestRunner  {
     );
     terminal.sendText(command, true);
     terminal.show(true);
-    
+
     if (debug) {
       await this.debugAlt(rootPath, testName, debugTimeout);
     }

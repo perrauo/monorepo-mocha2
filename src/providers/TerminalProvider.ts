@@ -21,7 +21,6 @@ export class TerminalProvider {
   ): Terminal {
     
     const activeTerminal = this.getOrCreateTerminal(name, terminalOptions);
-    
     activeTerminal.sendText(`cd ${rootPath}`, true);
 
     return activeTerminal;

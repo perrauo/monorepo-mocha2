@@ -2,7 +2,7 @@
 		"name": "monorepo-mocha",
 		"displayName": "Mocha - Monorepo",
 		"description": "Run mocha unit tests in a monorepo layout",
-		"version": "1.1.0",
+		"version": "1.1.1",
 		"publisher": "GeekAdonis",
 		"author": {"name": "Stephen"},
 		"icons": "images/icon.png",
@@ -22,7 +22,8 @@
 				"Testing"
 		],
 		"activationEvents": [
-				"onLanguage:typescript"
+				"onLanguage:typescript",
+				"onLanguage:javascript"
 		],
 		"main": "./out/extension.js",
 		"capabilities": {
