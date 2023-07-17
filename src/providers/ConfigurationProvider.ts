@@ -39,4 +39,8 @@ export class ConfigurationProvider {
   get trackResultsInline(): boolean {
     return this.configuration.get("trackResultsInline") || false;
   }
+
+  get pathToMocha(): string | undefined {
+    return this.configuration.get("pathToMocha") || undefined;
+  }
 }

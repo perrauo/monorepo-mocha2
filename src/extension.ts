@@ -6,8 +6,6 @@ import {discoverTests, initTestController} from './providers/TestManager';
 
 export async function activate(context: vscode.ExtensionContext) {
 	
-	console.log('Congratulations, your extension "monorepo-mocha" is now active!');
-
 	const testController = initTestController();
 	context.subscriptions.push(testController);
 

@@ -1,6 +1,6 @@
-import {join, relative, sep, dirname, resolve} from "path";
-import {existsSync, watchFile, readFileSync, rmSync, unwatchFile} from "fs";
-import * as uuid from "uuid";
+import {join, relative, sep, dirname, resolve} from 'path';
+import {existsSync, watchFile, readFileSync, rmSync, unwatchFile} from 'fs';
+import * as uuid from 'uuid';
 import {XMLParser} from 'fast-xml-parser';
 import {debug, DebugSession, Disposable, TestItem, TestRun, WorkspaceFolder} from "vscode";
 import {ConfigurationProvider, TestLocationConfiguration} from "../providers/ConfigurationProvider";
@@ -64,6 +64,11 @@ export class MochaTestRunner  {
 
     if (path) {
       this.path = path;
+    } else {
+      const overrideMochaPath = configurationProvider.pathToMocha;
+      if (overrideMochaPath) {
+        this.path = overrideMochaPath;
+      }
     }
   }
 
@@ -78,7 +83,7 @@ export class MochaTestRunner  {
   ) : Promise<void> {
     return new Promise<void>((resolve, reject) => {
       testRun.started(item);
-      watchFile(outFile, {}, (curr, prev) => {
+      watchFile(outFile, {}, () => {
         try {
           if (existsSync(outFile)) {
             const fileData = readFileSync(outFile, 'utf8');
@@ -122,7 +127,7 @@ export class MochaTestRunner  {
       if (testName.indexOf("'")) {
         args.push(
           '--grep',
-          `'"${testName.replace(/'/g, ".")}"'`,
+          `'"${testName.replace(/['|"]/g, ".")}"'`,
         );
       } else {
         args.push(
@@ -201,7 +206,7 @@ export class MochaTestRunner  {
 		};
 
 		const debugSessionPromise = new Promise<DebugSession>((resolve, reject) => {
-			let subscription: Disposable | undefined = debug.onDidStartDebugSession(debugSession => {
+			let subscription: Disposable | undefined = debug.onDidStartDebugSession((debugSession: any) => {
 				if ((debugSession.name === debuggerConfigName) && subscription) {
 					resolve(debugSession);
 					subscription.dispose();
