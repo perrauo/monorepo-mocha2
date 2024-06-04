@@ -13,6 +13,17 @@ It is primarily designed for Typescript tests, and the features are geared round
 * Parse and understand locations and expectations from mocha (Experimental)
 * Automatically reparent test runner based on location of tsconfig.json
 
+## Install
+```
+npm install --global yarn
+yarn add --dev @vscode/vsce
+# cd into extension project (monorepo-mocha2)
+yarn install
+yarn compile
+yarn vsce package
+code --install-extension monorepo-mocha-1.1.x.vsix
+```
+
 ## Requirements
 
 ## Extension Settings
